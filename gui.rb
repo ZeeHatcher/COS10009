@@ -83,8 +83,24 @@ class AddTaskMenu < FXVerticalFrame
 		end
 	end
 	
-	def check_input 
+	def check_input
+		checklist = []
 		
+		# Checks for an empty task title
+		if (@inTaskTitle.text = "") 
+			checklist.push(false)
+		else
+			checklist.push(true)
+		end
+		
+		# Checks if task time is given, and if given, checks all inputs are given
+		if (@inTaskStartH == "" && @inTaskStartM == "" && @inTaskEndH == "" && @inTaskEndM == "")
+			checklist.push(true)
+		elsif (@inTaskStartH != "" && @inTaskStartM != "" && @inTaskEndH != "" && @inTaskEndM != "")
+			checklist.push(true)
+		else
+			checklist.push(false)
+		end
 	end
 end
 
