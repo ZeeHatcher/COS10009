@@ -1,5 +1,5 @@
 class Task
-  attr_accessor :title, :desc
+  attr_accessor :title, :desc, :timeStart, :timeEnd
 
   def initialize(title, desc, timeStart, timeEnd)
     @title = title
@@ -10,7 +10,7 @@ class Task
     @isComplete = false
     @isScheduled = false
 
-    if (@timeStart != "" && @timeEnd != "")
+    if (@timeStart != nil && @timeEnd != nil)
       @isScheduled = true
     end
   end
