@@ -8,7 +8,7 @@ class Task
     @timeEnd = timeEnd
     @isScheduled = false
 
-    if (@timeStart == nil && @timeEnd == nil)
+    if (@timeStart != nil && @timeEnd != nil)
       @isScheduled = true
     end
   end
