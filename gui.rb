@@ -3,12 +3,8 @@ require 'fox16'
 include Fox
 
 class Main < FXMainWindow
-<<<<<<< HEAD
   attr_reader :dateRef
 
-=======
-	attr_reader :dateRef
->>>>>>> refs/remotes/origin/master
   def initialize(app)
     super(app, "_Routine", :width => 800, :height => 600)
 
@@ -86,7 +82,7 @@ class AddTaskMenu < FXVerticalFrame
 		hfrButtons = FXHorizontalFrame.new(self, :opts => LAYOUT_CENTER_X)
 		btAdd = FXButton.new(hfrButtons, "Add Task")
 		btAdd.connect(SEL_COMMAND) do
-			valid = check_input		
+			valid = check_input
 
       if valid
         taskStart = taskEnd = nil
@@ -98,12 +94,6 @@ class AddTaskMenu < FXVerticalFrame
         end
 
         taskNew = Task.new(@inTaskTitle.text, @inTaskDesc.text, taskStart, taskEnd)
-
-        puts taskNew.title
-        puts taskNew.desc
-        puts taskNew.timeStart
-        puts taskNew.timeEnd
-        puts taskNew.isScheduled
       end
 		end
 
@@ -133,15 +123,9 @@ class AddTaskMenu < FXVerticalFrame
 	end
 
   def generate_time(h, m)
-<<<<<<< HEAD
     dateRef = @parent.dateRef
 
-    time = Time.new(dateRef.year, dateRef.month, dateRef.day, h, m)
-=======
-		dateRef = @parent.dateRef
-
-		return Time.new(dateRef.year, dateRef.month, dateRef.day, h, m)
->>>>>>> refs/remotes/origin/master
+    return Time.new(dateRef.year, dateRef.month, dateRef.day, h, m)
   end
 end
 
