@@ -3,18 +3,40 @@ require 'fox16'
 include Fox
 
 class Main < FXMainWindow
-  attr_reader :dateRef
+  attr_reader :dateRef, :tasksCurrent
 
   def initialize(app)
     super(app, "_Routine", :width => 800, :height => 600)
 
     @dateRef = Time.new()
+    check_existing_tasks
+    check_date
+
     disp = DisplayTaskMenu.new(self)
   end
 
   def create
     super
     show(PLACEMENT_SCREEN)
+  end
+
+  def check_existing_tasks
+    begin
+      @tasksCurrent = load_file("test.dump")
+    rescue
+      @tasksCurrent = Tasks.new
+      dump_file("test.dump", @tasksCurrent)
+    end
+  end
+
+  def check_date
+    dateFile = @tasksCurrent.date
+
+    isSameDay = dateFile.year == @dateRef.year && dateFile.month == @dateRef.month && dateFile.day == @dateRef.day
+    if (!isSameDay)
+      @tasksCurrent = Tasks.new
+      dump_file("test.dump", @tasksCurrent)
+    end
   end
 end
 
@@ -28,6 +50,14 @@ class DisplayTaskMenu < FXHorizontalFrame
 	def initialize(parent)
 		super(parent, :opts => LAYOUT_FILL)
     @parent = parent
+
+    @parent.tasksCurrent.tasks.each do |task|
+      puts "Task: " + task.title
+      puts "Description: " + task.desc
+      puts "Start Time: " + task.timeStart.to_s
+      puts "End Time: " + task.timeEnd.to_s
+      puts ""
+    end
 
     # Large vertical frame for title and pies
     vfrListed = FXVerticalFrame.new(self, :opts => LAYOUT_FILL)
@@ -93,7 +123,12 @@ class AddTaskMenu < FXVerticalFrame
           taskEnd = generate_time(@inTaskEndH.text.to_i, @inTaskEndM.text.to_i)
         end
 
-        taskNew = Task.new(@inTaskTitle.text, @inTaskDesc.text, taskStart, taskEnd)
+        @parent.tasksCurrent.generate_task(@inTaskTitle.text, @inTaskDesc.text, taskStart, taskEnd)
+        dump_file("test.dump", @parent.tasksCurrent)
+
+        removeChild(self)
+        DisplayTaskMenu.new(@parent).create
+        @parent.recalc
       end
 		end
 
