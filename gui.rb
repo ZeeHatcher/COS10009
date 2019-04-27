@@ -3,6 +3,8 @@ require 'fox16'
 include Fox
 
 class Main < FXMainWindow
+  attr_reader :dateRef
+
   def initialize(app)
     super(app, "_Routine", :width => 800, :height => 600)
 
@@ -83,7 +85,21 @@ class AddTaskMenu < FXVerticalFrame
 			valid = check_input
 
       if valid
-        taskNew = Task.new()
+        taskStart = taskEnd = nil
+
+        isFilled = @inTaskStartH.text != "" && @inTaskStartM.text != "" && @inTaskEndH.text != "" && @inTaskEndM.text != ""
+        if (isFilled)
+          taskStart = generate_time(@inTaskStartH.text.to_i, @inTaskStartM.text.to_i)
+          taskEnd = generate_time(@inTaskEndH.text.to_i, @inTaskEndM.text.to_i)
+        end
+
+        taskNew = Task.new(@inTaskTitle.text, @inTaskDesc.text, taskStart, taskEnd)
+
+        puts taskNew.title
+        puts taskNew.desc
+        puts taskNew.timeStart
+        puts taskNew.timeEnd
+        puts taskNew.isScheduled
       end
 		end
 
@@ -99,8 +115,6 @@ class AddTaskMenu < FXVerticalFrame
 		# Checks for an empty task title
 		if (@inTaskTitle.text == "")
 			return false
-    else
-      puts "Title Given"
 		end
 
 		# Checks if task time is given, and if given, checks all inputs are given
@@ -114,7 +128,10 @@ class AddTaskMenu < FXVerticalFrame
     return true
 	end
 
-  def format_input
+  def generate_time(h, m)
+    dateRef = @parent.dateRef
+
+    time = Time.new(dateRef.year, dateRef.month, dateRef.day, h, m)
   end
 end
 
