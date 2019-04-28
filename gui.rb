@@ -6,7 +6,7 @@ class Main < FXMainWindow
   attr_reader :dateRef, :tasksCurrent
 
   def initialize(app)
-    super(app, "_Routine", :width => 800, :height => 600)
+    super(app, "_Routine", :width => 1024, :height => 768)
 
     @dateRef = Time.new()
     check_existing_tasks
@@ -44,35 +44,62 @@ class UnlistedTasks
 end
 
 class Pie < FXCanvas
-  def initialize(parent, tasks)
+  def initialize(parent, tasks, thickness = 5, dia = 250)
     super(parent, :opts => LAYOUT_FILL)
+    @parent = parent
     @tasks = tasks
 
     self.connect(SEL_PAINT) do
       dc = FXDCWindow.new(self)
-      dc.foreground = FXRGB(0,0,0)
 
+      @ringWidth = thickness
+      @outerDiameter = dia
+      @margin = 20
+
+      @outerXLeft = (self.width / 2) - @margin - @outerDiameter
+      @outerXRight = (self.width / 2) + @margin
+      @outerY = (self.height / 2) - (@outerDiameter / 2)
+
+      @innerDiameter = @outerDiameter - (@ringWidth * 2)
+      @innerXLeft = @outerXLeft + @ringWidth
+      @innerXRight = @outerXRight + @ringWidth
+      @innerY = @outerY + @ringWidth
+
+
+      dc.foreground = @parent.backColor
+      dc.fillRectangle(0, 0, self.width, self.height)
+
+      dc.foreground = FXRGB(rand(255),rand(255),rand(255))
       @tasks.each do |task|
-        startPos = ((task.timeStart.hour * 60) + task.timeStart.min) * 32
-        extent = task.timeDuration * 32
+        if (task.isScheduled)
+          startPos = ((task.timeStart.hour * 60) + task.timeStart.min) * 32
+          extent = task.timeDuration * 32
 
-        if (task.timeStart.hour <= 12 && task.timeEnd.hour <= 12)
-          dc.drawArc(0, 0, 250, 250, 5760-startPos, -extent)
-        elsif (task.timeStart.hour >= 12 && task.timeEnd.hour >= 12)
-          startPos -= 23040
-          dc.drawArc(300, 0, 250, 250, 5760-startPos, -extent)
-        else
-          timeMid = Time.new(task.timeStart.year, task.timeStart.month, task.timeStart.day, 12, 0)
-          extentPre = ((timeMid - task.timeStart) / 60) * 32
-          extentPost = ((task.timeEnd - timeMid) / 60) * 32
+          if (task.timeStart.hour <= 12 && task.timeEnd.hour <= 12)
+            dc.fillArc(@outerXLeft, @outerY, @outerDiameter, @outerDiameter, 5760-startPos, -extent)
+          elsif (task.timeStart.hour >= 12 && task.timeEnd.hour >= 12)
+            startPos -= 23040
+            dc.fillArc(@outerXRight, @outerY, @outerDiameter, @outerDiameter, 5760-startPos, -extent)
+          else
+            timeMid = Time.new(task.timeStart.year, task.timeStart.month, task.timeStart.day, 12, 0)
+            extentPre = ((timeMid - task.timeStart) / 60) * 32
+            extentPost = ((task.timeEnd - timeMid) / 60) * 32
 
-          dc.drawArc(0, 0, 250, 250, 5760-startPos, -extentPre)
-          dc.drawArc(300, 0, 250, 250, 5760, -extentPost)
+            dc.fillArc(@outerXLeft, @outerY, @outerDiameter, @outerDiameter, 5760-startPos, -extentPre)
+            dc.fillArc(@outerXRight, @outerY, @outerDiameter, @outerDiameter, 5760, -extentPost)
+          end
+
         end
       end
 
+      dc.foreground = @parent.backColor
+      dc.fillArc(@innerXLeft, @innerY, @innerDiameter, @innerDiameter, 0, 23040)
+      dc.fillArc(@innerXRight, @innerY, @innerDiameter, @innerDiameter, 0, 23040)
+
       dc.end
     end
+
+    # Function to calculate "overlap index", which is how many tasks is the task at question overlapping with
   end
 end
 

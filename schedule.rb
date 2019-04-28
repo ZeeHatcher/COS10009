@@ -21,11 +21,11 @@ class Task
     @desc = desc
     @timeStart = timeStart
     @timeEnd = timeEnd
-    @timeDuration = (timeEnd - timeStart) / 60
     @isScheduled = false
 
     if (@timeStart != nil && @timeEnd != nil)
       @isScheduled = true
+      @timeDuration = (timeEnd - timeStart) / 60
     end
   end
 end
