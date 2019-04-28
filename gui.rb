@@ -44,7 +44,7 @@ class UnlistedTasks
 end
 
 class Pie < FXCanvas
-  def initialize(parent, tasks, thickness = 5, dia = 250)
+  def initialize(parent, tasks, thickness = 10, dia = 250)
     super(parent, :opts => LAYOUT_FILL)
     @parent = parent
     @tasks = tasks
@@ -55,7 +55,9 @@ class Pie < FXCanvas
       @ringWidth = thickness
       @outerDiameter = dia
       @margin = 20
+      @listIndexOverlap = calc_overlap
 
+      @outerDiameter = @outerDiameter
       @outerXLeft = (self.width / 2) - @margin - @outerDiameter
       @outerXRight = (self.width / 2) + @margin
       @outerY = (self.height / 2) - (@outerDiameter / 2)
@@ -65,41 +67,87 @@ class Pie < FXCanvas
       @innerXRight = @outerXRight + @ringWidth
       @innerY = @outerY + @ringWidth
 
-
       dc.foreground = @parent.backColor
       dc.fillRectangle(0, 0, self.width, self.height)
 
-      dc.foreground = FXRGB(rand(255),rand(255),rand(255))
+      dc.foreground = FXRGB(0, 0, 0)
+      dc.drawArc(@outerXLeft, @outerY, @outerDiameter, @outerDiameter, 0, 23040)
+      dc.drawArc(@outerXRight, @outerY, @outerDiameter, @outerDiameter, 0, 23040)
+
+      i = 0
       @tasks.each do |task|
         if (task.isScheduled)
+          dc.foreground = FXRGB(rand(255),rand(255),rand(255))
+
+          @indexOverlap = @listIndexOverlap[i]
+          @offset = (@ringWidth * @indexOverlap) * 1.1
+
+          outerDiameter = @outerDiameter - (@offset * 2)
+          outerXLeft = @outerXLeft + @offset
+          outerXRight = @outerXRight + @offset
+          outerY = @outerY + @offset
+
+          innerDiameter = outerDiameter - (@ringWidth * 2)
+          innerXLeft = outerXLeft + @ringWidth
+          innerXRight = outerXRight + @ringWidth
+          innerY = outerY + @ringWidth
+
+          timeMid = Time.new(task.timeStart.year, task.timeStart.month, task.timeStart.day, 12, 0)
           startPos = ((task.timeStart.hour * 60) + task.timeStart.min) * 32
           extent = task.timeDuration * 32
 
-          if (task.timeStart.hour <= 12 && task.timeEnd.hour <= 12)
-            dc.fillArc(@outerXLeft, @outerY, @outerDiameter, @outerDiameter, 5760-startPos, -extent)
-          elsif (task.timeStart.hour >= 12 && task.timeEnd.hour >= 12)
+          if (task.timeStart <= timeMid && task.timeEnd <= timeMid)
+            dc.fillArc(outerXLeft, outerY, outerDiameter, outerDiameter, 5760-startPos, -extent)
+
+            dc.foreground = @parent.backColor
+            dc.fillArc(innerXLeft, innerY, innerDiameter, innerDiameter, 5760-startPos, -extent)
+          elsif (task.timeStart >= timeMid && task.timeEnd >= timeMid)
             startPos -= 23040
-            dc.fillArc(@outerXRight, @outerY, @outerDiameter, @outerDiameter, 5760-startPos, -extent)
+            dc.fillArc(outerXRight, outerY, outerDiameter, outerDiameter, 5760-startPos, -extent)
+
+            dc.foreground = @parent.backColor
+            dc.fillArc(innerXRight, innerY, innerDiameter, innerDiameter, 5760-startPos, -extent)
           else
-            timeMid = Time.new(task.timeStart.year, task.timeStart.month, task.timeStart.day, 12, 0)
             extentPre = ((timeMid - task.timeStart) / 60) * 32
             extentPost = ((task.timeEnd - timeMid) / 60) * 32
 
-            dc.fillArc(@outerXLeft, @outerY, @outerDiameter, @outerDiameter, 5760-startPos, -extentPre)
-            dc.fillArc(@outerXRight, @outerY, @outerDiameter, @outerDiameter, 5760, -extentPost)
+            dc.fillArc(outerXLeft, outerY, outerDiameter, outerDiameter, 5760-startPos, -extentPre)
+            dc.fillArc(outerXRight, outerY, outerDiameter, outerDiameter, 5760, -extentPost)
+
+            dc.foreground = @parent.backColor
+            dc.fillArc(innerXLeft, innerY, innerDiameter, innerDiameter, 5760-startPos, -extentPre)
+            dc.fillArc(innerXRight, innerY, innerDiameter, innerDiameter, 5760, -extentPost)
           end
 
+          i += 1
         end
       end
 
-      dc.foreground = @parent.backColor
-      dc.fillArc(@innerXLeft, @innerY, @innerDiameter, @innerDiameter, 0, 23040)
-      dc.fillArc(@innerXRight, @innerY, @innerDiameter, @innerDiameter, 0, 23040)
-
       dc.end
     end
+  end
 
-    # Function to calculate "overlap index", which is how many tasks is the task at question overlapping with
+  def calc_overlap
+    listIndexOverlap = []
+
+    @tasks.each do |targetTask|
+      if (targetTask.isScheduled)
+        indexOverlap = 0
+        targetTime = targetTask.timeStart
+
+        @tasks.each do |refTask|
+          if (refTask.isScheduled && refTask.title != targetTask.title)
+            if (targetTime >= refTask.timeStart && targetTime < refTask.timeEnd)
+              indexOverlap += 1
+            end
+          end
+        end
+
+        listIndexOverlap.push(indexOverlap)
+      end
+    end
+
+    return listIndexOverlap
   end
 end
 
