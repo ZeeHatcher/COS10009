@@ -14,13 +14,14 @@ class Tasks
 end
 
 class Task
-  attr_accessor :title, :desc, :timeStart, :timeEnd, :isScheduled
+  attr_accessor :title, :desc, :timeStart, :timeEnd, :timeDuration, :isScheduled
 
   def initialize(title, desc, timeStart, timeEnd)
     @title = title
     @desc = desc
     @timeStart = timeStart
     @timeEnd = timeEnd
+    @timeDuration = (timeEnd - timeStart) / 60
     @isScheduled = false
 
     if (@timeStart != nil && @timeEnd != nil)

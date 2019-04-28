@@ -43,7 +43,37 @@ end
 class UnlistedTasks
 end
 
-class Pie
+class Pie < FXCanvas
+  def initialize(parent, tasks)
+    super(parent, :opts => LAYOUT_FILL)
+    @tasks = tasks
+
+    self.connect(SEL_PAINT) do
+      dc = FXDCWindow.new(self)
+      dc.foreground = FXRGB(0,0,0)
+
+      @tasks.each do |task|
+        startPos = ((task.timeStart.hour * 60) + task.timeStart.min) * 32
+        extent = task.timeDuration * 32
+
+        if (task.timeStart.hour <= 12 && task.timeEnd.hour <= 12)
+          dc.drawArc(0, 0, 250, 250, 5760-startPos, -extent)
+        elsif (task.timeStart.hour >= 12 && task.timeEnd.hour >= 12)
+          startPos -= 23040
+          dc.drawArc(300, 0, 250, 250, 5760-startPos, -extent)
+        else
+          timeMid = Time.new(task.timeStart.year, task.timeStart.month, task.timeStart.day, 12, 0)
+          extentPre = ((timeMid - task.timeStart) / 60) * 32
+          extentPost = ((task.timeEnd - timeMid) / 60) * 32
+
+          dc.drawArc(0, 0, 250, 250, 5760-startPos, -extentPre)
+          dc.drawArc(300, 0, 250, 250, 5760, -extentPost)
+        end
+      end
+
+      dc.end
+    end
+  end
 end
 
 class DisplayTaskMenu < FXHorizontalFrame
@@ -56,6 +86,7 @@ class DisplayTaskMenu < FXHorizontalFrame
       puts "Description: " + task.desc
       puts "Start Time: " + task.timeStart.to_s
       puts "End Time: " + task.timeEnd.to_s
+      puts "Duration: " + task.timeDuration.to_s
       puts ""
     end
 
@@ -63,7 +94,9 @@ class DisplayTaskMenu < FXHorizontalFrame
     vfrListed = FXVerticalFrame.new(self, :opts => LAYOUT_FILL)
     lbListedTitle = FXLabel.new(vfrListed, "Scheduled Tasks", :opts => LAYOUT_CENTER_X)
 
-    hfrListedTasks = FXVerticalFrame.new(vfrListed, :opts => LAYOUT_FILL)
+    hfrListedTasks = FXVerticalFrame.new(vfrListed, :opts => LAYOUT_FILL, :width => 100, :height => 100)
+
+    test = Pie.new(hfrListedTasks, @parent.tasksCurrent.tasks)
 
     # Skinny vertical frame for unlisted tasks and button
     vfrUnlisted = FXVerticalFrame.new(self, :opts => LAYOUT_SIDE_RIGHT)
