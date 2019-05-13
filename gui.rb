@@ -7,12 +7,19 @@ class Main < FXMainWindow
 
   def initialize(app)
     super(app, "_Routine", :width => 1024, :height => 768)
+    @@font = FXFont.new(app, "segoe ui", 9)
+    @@font.create
+
 
     @dateRef = Time.new()
     check_existing_tasks
     check_date
 
     disp = DisplayTaskMenu.new(self)
+  end
+
+  def self.font
+    @@font
   end
 
   def create
@@ -40,88 +47,118 @@ class Main < FXMainWindow
   end
 end
 
-class UnlistedTasks
+
+
+class DisplayTaskMenu < FXHorizontalFrame
+	def initialize(parent)
+		super(parent, :opts => LAYOUT_FILL)
+    @parent = parent
+    @tasks = @parent.tasksCurrent.tasks
+
+    @tasks.each do |task|
+      puts "Task: " + task.title
+      puts "Description: " + task.desc
+      puts "Start Time: " + task.timeStart.to_s
+      puts "End Time: " + task.timeEnd.to_s
+      puts "Duration: " + task.timeDuration.to_s
+      puts ""
+    end
+
+    # Large vertical frame for title and pies
+    vfrScheduled = FXVerticalFrame.new(self, :opts => LAYOUT_FILL)
+    lbScheduledTitle = FXLabel.new(vfrScheduled, "Scheduled Tasks", :opts => LAYOUT_CENTER_X)
+
+    if (@tasks.length > 0)
+      Pie.new(vfrScheduled, @parent.tasksCurrent.tasks)
+    end
+
+    # Skinny vertical frame for unlisted tasks and button
+    vfrList = FXVerticalFrame.new(self, :opts => LAYOUT_SIDE_RIGHT)
+    lbListTitle = FXLabel.new(vfrList, "Unscheduled Tasks", :opts => LAYOUT_CENTER_X)
+
+    vfrTasks = FXVerticalFrame.new(vfrList, :opts => LAYOUT_FILL)
+
+    @tasks.each do |task|
+      DisplayTask.new(vfrTasks, task)
+    end
+
+    btAddTask = FXButton.new(vfrList, "+")
+    btAddTask.connect(SEL_COMMAND) do
+      removeChild(self)
+      AddTaskMenu.new(@parent).create
+      @parent.recalc
+    end
+	end
 end
 
+
+
+class DisplayTask < FXVerticalFrame
+  def initialize(parent, task)
+    super(parent, :opts => LAYOUT_FILL_X)
+    @task = task
+
+    lbTitle = FXLabel.new(self, @task.title)
+    lbDesc = FXLabel.new(self, @task.desc)
+
+    timeStart = format_time(@task.timeStart)
+    timeEnd = format_time(@task.timeEnd)
+    timeRange = timeStart + " - " + timeEnd
+
+    lbTime = FXLabel.new(self, timeRange)
+  end
+
+  def format_time(time)
+    timeString = time.hour.to_s + ":" + time.min.to_s
+
+    timeHour = (time.hour.to_s.length == 1) ? "0" + time.hour.to_s : time.hour.to_s
+    timeMinute = (time.min.to_s.length == 1) ? "0" + time.min.to_s : time.min.to_s
+
+    timeStr = timeHour + ":" + timeMinute
+
+    return timeStr
+  end
+end
+
+
+
 class Pie < FXCanvas
-  def initialize(parent, tasks, thickness = 10, dia = 250)
+  def initialize(parent, tasks)
     super(parent, :opts => LAYOUT_FILL)
     @parent = parent
-    @tasks = tasks
+
+    @tasks = []
+    tasks.each do |task|
+      if (task.isScheduled)
+        @tasks.push(task)
+      end
+    end
+
+    @listIndexOverlap = calc_overlap
+    @dia = 500
 
     self.connect(SEL_PAINT) do
       dc = FXDCWindow.new(self)
 
-      @ringWidth = thickness
-      @outerDiameter = dia
-      @margin = 20
-      @listIndexOverlap = calc_overlap
-
-      @outerDiameter = @outerDiameter
-      @outerXLeft = (self.width / 2) - @margin - @outerDiameter
-      @outerXRight = (self.width / 2) + @margin
-      @outerY = (self.height / 2) - (@outerDiameter / 2)
-
-      @innerDiameter = @outerDiameter - (@ringWidth * 2)
-      @innerXLeft = @outerXLeft + @ringWidth
-      @innerXRight = @outerXRight + @ringWidth
-      @innerY = @outerY + @ringWidth
-
+      # Color background
       dc.foreground = @parent.backColor
       dc.fillRectangle(0, 0, self.width, self.height)
 
       dc.foreground = FXRGB(0, 0, 0)
-      dc.drawArc(@outerXLeft, @outerY, @outerDiameter, @outerDiameter, 0, 23040)
-      dc.drawArc(@outerXRight, @outerY, @outerDiameter, @outerDiameter, 0, 23040)
+      diaRing = @dia + 15
+      dc.drawArc((self.width / 2) - (diaRing / 2), (self.height / 2) - (diaRing / 2), diaRing, diaRing, 0, 23040)
 
-      i = 0
-      @tasks.each do |task|
-        if (task.isScheduled)
-          dc.foreground = FXRGB(rand(255),rand(255),rand(255))
-
-          @indexOverlap = @listIndexOverlap[i]
-          @offset = (@ringWidth * @indexOverlap) * 1.1
-
-          outerDiameter = @outerDiameter - (@offset * 2)
-          outerXLeft = @outerXLeft + @offset
-          outerXRight = @outerXRight + @offset
-          outerY = @outerY + @offset
-
-          innerDiameter = outerDiameter - (@ringWidth * 2)
-          innerXLeft = outerXLeft + @ringWidth
-          innerXRight = outerXRight + @ringWidth
-          innerY = outerY + @ringWidth
-
-          timeMid = Time.new(task.timeStart.year, task.timeStart.month, task.timeStart.day, 12, 0)
-          startPos = ((task.timeStart.hour * 60) + task.timeStart.min) * 32
-          extent = task.timeDuration * 32
-
-          if (task.timeStart <= timeMid && task.timeEnd <= timeMid)
-            dc.fillArc(outerXLeft, outerY, outerDiameter, outerDiameter, 5760-startPos, -extent)
-
-            dc.foreground = @parent.backColor
-            dc.fillArc(innerXLeft, innerY, innerDiameter, innerDiameter, 5760-startPos, -extent)
-          elsif (task.timeStart >= timeMid && task.timeEnd >= timeMid)
-            startPos -= 23040
-            dc.fillArc(outerXRight, outerY, outerDiameter, outerDiameter, 5760-startPos, -extent)
-
-            dc.foreground = @parent.backColor
-            dc.fillArc(innerXRight, innerY, innerDiameter, innerDiameter, 5760-startPos, -extent)
-          else
-            extentPre = ((timeMid - task.timeStart) / 60) * 32
-            extentPost = ((task.timeEnd - timeMid) / 60) * 32
-
-            dc.fillArc(outerXLeft, outerY, outerDiameter, outerDiameter, 5760-startPos, -extentPre)
-            dc.fillArc(outerXRight, outerY, outerDiameter, outerDiameter, 5760, -extentPost)
-
-            dc.foreground = @parent.backColor
-            dc.fillArc(innerXLeft, innerY, innerDiameter, innerDiameter, 5760-startPos, -extentPre)
-            dc.fillArc(innerXRight, innerY, innerDiameter, innerDiameter, 5760, -extentPost)
+      for targetIndex in 0..(@listIndexOverlap).max
+        for i in 0..@tasks.length - 1
+          if (@listIndexOverlap[i] == targetIndex)
+            task = @tasks[i]
+            draw_arc(dc, task.timeStart, task.timeEnd, @listIndexOverlap[i])
           end
-
-          i += 1
         end
       end
+
+      dc.font = Main.font
+      draw_hours(dc)
 
       dc.end
     end
@@ -133,11 +170,12 @@ class Pie < FXCanvas
     @tasks.each do |targetTask|
       if (targetTask.isScheduled)
         indexOverlap = 0
-        targetTime = targetTask.timeStart
 
-        @tasks.each do |refTask|
-          if (refTask.isScheduled && refTask.title != targetTask.title)
-            if (targetTime >= refTask.timeStart && targetTime < refTask.timeEnd)
+        for i in 0..@tasks.index(targetTask)
+          refTask = @tasks[i]
+
+          if (refTask != targetTask)
+            if ((targetTask.timeStart >= refTask.timeStart && targetTask.timeStart < refTask.timeEnd) || (targetTask.timeEnd >= refTask.timeStart && targetTask.timeEnd < refTask.timeEnd)) && indexOverlap == listIndexOverlap[i]
               indexOverlap += 1
             end
           end
@@ -149,44 +187,62 @@ class Pie < FXCanvas
 
     return listIndexOverlap
   end
-end
 
-class DisplayTaskMenu < FXHorizontalFrame
-	def initialize(parent)
-		super(parent, :opts => LAYOUT_FILL)
-    @parent = parent
+  def draw_arc(dc, timeStart, timeEnd, indexOverlap)
+    weight = 10
+    diameter = @dia - (weight * indexOverlap * 2)
+    x = (self.width / 2) - (diameter / 2)
+    y = (self.height / 2) - (diameter / 2)
+    start = ((timeStart.hour * 60) + timeStart.min) * 16
+    extent = ((timeEnd - timeStart) / 60) * 16
 
-    @parent.tasksCurrent.tasks.each do |task|
-      puts "Task: " + task.title
-      puts "Description: " + task.desc
-      puts "Start Time: " + task.timeStart.to_s
-      puts "End Time: " + task.timeEnd.to_s
-      puts "Duration: " + task.timeDuration.to_s
-      puts ""
+    dc.foreground = FXRGB(rand(255), rand(255), rand(255))
+    dc.fillArc(x, y, diameter, diameter, 5760 - start, -extent)
+
+    dc.foreground = @parent.backColor
+    dc.fillArc(x + weight, y + weight, diameter - (weight * 2), diameter - (weight * 2), 0, 23040)
+  end
+
+  def draw_hours(dc)
+    centerX = self.width / 2
+    centerY = self.height / 2
+
+    hour = 1
+    angle = -75
+    angleEnd = angle + 360
+    radius = @dia / 2 + 20
+
+    dc.foreground = FXRGB(0, 0, 0)
+
+    while (angle < angleEnd)
+      radians = angle * Math::PI / 180
+
+      offsetX = Math.cos(radians) * radius
+      offsetY = Math.sin(radians) * radius
+
+      dc.drawText(centerX + offsetX - 4, centerY + offsetY + (dc.font.fontHeight / 2), hour.to_s)
+
+      hour += 1
+      angle += 15
     end
 
-    # Large vertical frame for title and pies
-    vfrListed = FXVerticalFrame.new(self, :opts => LAYOUT_FILL)
-    lbListedTitle = FXLabel.new(vfrListed, "Scheduled Tasks", :opts => LAYOUT_CENTER_X)
+    angle = -82.5
+    angleEnd = angle + 360
 
-    hfrListedTasks = FXVerticalFrame.new(vfrListed, :opts => LAYOUT_FILL, :width => 100, :height => 100)
+    while (angle < angleEnd)
+      radians = angle * Math::PI / 180
 
-    test = Pie.new(hfrListedTasks, @parent.tasksCurrent.tasks)
+      offsetX = Math.cos(radians) * radius
+      offsetY = Math.sin(radians) * radius
 
-    # Skinny vertical frame for unlisted tasks and button
-    vfrUnlisted = FXVerticalFrame.new(self, :opts => LAYOUT_SIDE_RIGHT)
-    lbUnlistedTitle = FXLabel.new(vfrUnlisted, "Unscheduled Tasks", :opts => LAYOUT_CENTER_X)
+      dc.fillArc(centerX + offsetX, centerY + offsetY, 5, 5, 0, 23040)
 
-    vfrUnlistedTasks = FXVerticalFrame.new(vfrUnlisted, :opts => LAYOUT_FILL)
-
-    btAddTask = FXButton.new(vfrUnlisted, "+")
-    btAddTask.connect(SEL_COMMAND) do
-      removeChild(self)
-      AddTaskMenu.new(@parent).create
-      @parent.recalc
+      angle += 15
     end
-	end
+  end
 end
+
+
 
 class AddTaskMenu < FXVerticalFrame
 	def initialize(parent)
@@ -271,6 +327,8 @@ class AddTaskMenu < FXVerticalFrame
     return Time.new(dateRef.year, dateRef.month, dateRef.day, h, m)
   end
 end
+
+
 
 if __FILE__ == $0
   FXApp.new do |app|
