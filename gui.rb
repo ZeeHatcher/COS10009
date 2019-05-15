@@ -76,7 +76,8 @@ class DisplayTaskMenu < FXHorizontalFrame
     vfrList = FXVerticalFrame.new(self, :opts => LAYOUT_SIDE_RIGHT)
     lbListTitle = FXLabel.new(vfrList, "Unscheduled Tasks", :opts => LAYOUT_CENTER_X)
 
-    vfrTasks = FXVerticalFrame.new(vfrList, :opts => LAYOUT_FILL)
+    scrArea = FXScrollArea.new(vfrList, :width => 100, :height => self.height)
+    vfrTasks = FXVerticalFrame.new(scrArea, :opts => LAYOUT_FILL | FRAME_LINE)
 
     @tasks.each do |task|
       DisplayTask.new(vfrTasks, task)
@@ -95,7 +96,7 @@ end
 
 class DisplayTask < FXVerticalFrame
   def initialize(parent, task)
-    super(parent, :opts => LAYOUT_FILL_X)
+    super(parent, :opts => LAYOUT_FILL_X | FRAME_THICK)
     @task = task
 
     lbTitle = FXLabel.new(self, @task.title)
@@ -196,7 +197,7 @@ class Pie < FXCanvas
     start = ((timeStart.hour * 60) + timeStart.min) * 16
     extent = ((timeEnd - timeStart) / 60) * 16
 
-    dc.foreground = FXRGB(rand(255), rand(255), rand(255))
+    dc.foreground = FXRGB(rand(210), rand(210), rand(210))
     dc.fillArc(x, y, diameter, diameter, 5760 - start, -extent)
 
     dc.foreground = @parent.backColor
