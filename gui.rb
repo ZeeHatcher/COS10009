@@ -3,13 +3,12 @@ require 'fox16'
 include Fox
 
 class Main < FXMainWindow
-  attr_reader :dateToday, :objTasksCurrent, :templates
+  attr_accessor :dateToday, :objTasksCurrent, :templates
 
   def initialize(app)
     super(app, "_Routine", :width => 1024, :height => 768)
     @@font = FXFont.new(app, "segoe ui", 9)
     @@font.create
-
 
     @dateToday = Time.new()
     check_existing_tasks
@@ -52,7 +51,13 @@ class Main < FXMainWindow
 
     isSameDay = dateFile.year == @dateToday.year && dateFile.month == @dateToday.month && dateFile.day == @dateToday.day
     if (!isSameDay)
-      @objTasksCurrent = Tasks.new
+      if (@templates.routine[@dateToday.wday.to_s] == nil)
+        @objTasksCurrent = Tasks.new
+      else
+        @objTasksCurrent = @templates.routine[@dateToday.wday.to_s].tasks
+        @objTasksCurrent.date = Time.new
+      end
+
       dump_file(FILE_CURRENT_TASKS, @objTasksCurrent)
     end
   end
@@ -67,14 +72,27 @@ end
 
 
 class MenuBar < FXMenuBar
+  attr_accessor :parent
+
   def initialize(parent)
     super(parent, :opts => LAYOUT_FILL_X | FRAME_RAISED)
     @parent = parent
+
+    menuFilesPane = FXMenuPane.new(self)
+    menuFilesTitle = FXMenuTitle.new(self, "Files", :popupMenu => menuFilesPane)
+
+    menuFilesClear = FXMenuCommand.new(menuFilesPane, "Clear current tasks")
+    menuFilesClear.connect(SEL_COMMAND) do
+      @parent.update_tasks(Tasks.new)
+
+      gui_recalc(@parent.objTasksCurrent)
+    end
 
     menuTemplatesPane = FXMenuPane.new(self)
     menuTemplatesTitle = FXMenuTitle.new(self, "Templates", :popupMenu => menuTemplatesPane)
 
     listTemplates = TemplatesList.new(self, @parent.templates.templates)
+    listRoutine = RoutineList.new(self, @parent.templates)
 
     menuTemplatesUse = FXMenuCommand.new(menuTemplatesPane, "Use template for today")
     menuTemplatesUse.connect(SEL_COMMAND) do
@@ -85,17 +103,14 @@ class MenuBar < FXMenuBar
         chosenTasks.date = Time.new
         @parent.update_tasks(chosenTasks)
 
-        @parent.children.each do |child|
-          @parent.removeChild(child)
-        end
-
-        MenuBar.new(@parent).create
-        TasksDisplayMain.new(@parent, chosenTasks).create
-        @parent.recalc
+        gui_recalc(chosenTasks)
       end
     end
 
     menuTemplatesRoutine = FXMenuCommand.new(menuTemplatesPane, "Set routine templates")
+    menuTemplatesRoutine.connect(SEL_COMMAND) do
+      listRoutine.execute
+    end
 
     menuTemplatesDelete = FXMenuCommand.new(menuTemplatesPane, "Delete templates")
     menuTemplatesDelete.connect(SEL_COMMAND) do
@@ -105,15 +120,19 @@ class MenuBar < FXMenuBar
         @parent.templates.templates.delete_at(i)
         dump_file(FILE_TEMPLATES, @parent.templates)
 
-        @parent.children.each do |child|
-          @parent.removeChild(child)
-        end
-
-        MenuBar.new(@parent).create
-        TasksDisplayMain.new(@parent, @parent.objTasksCurrent).create
-        @parent.recalc
+        gui_recalc(@parent.objTasksCurrent)
       end
     end
+  end
+
+  def gui_recalc(objTasks)
+    @parent.children.each do |child|
+      @parent.removeChild(child)
+    end
+
+    MenuBar.new(@parent).create
+    TasksDisplayMain.new(@parent, objTasks).create
+    @parent.recalc
   end
 end
 
@@ -127,6 +146,51 @@ class TemplatesList < FXChoiceBox
     end
 
     super(parent, "Choose template", "", nil, templateNames)
+  end
+end
+
+
+
+class RoutineList < FXDialogBox
+  def initialize(parent, objTemplates)
+    super(parent, "Set Routine", :width => 300, :height => 300)
+    @parent = parent
+    weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    templateNames = ["None"]
+    objTemplates.templates.each do |template|
+      templateNames << template.name
+    end
+
+    hfrInputZone = FXVerticalFrame.new(self, :opts => LAYOUT_FILL)
+
+    listboxes = []
+    weekdays.each do |day|
+      vfrRow = FXHorizontalFrame.new(hfrInputZone, :opts => LAYOUT_FILL_X)
+      FXLabel.new(vfrRow, day + ": ", :opts => LAYOUT_FIX_WIDTH | JUSTIFY_RIGHT, :width => 100)
+
+      listbox = FXListBox.new(vfrRow, :opts => LAYOUT_FILL_X | FRAME_LINE)
+      listbox.fillItems(templateNames)
+      listboxes << listbox
+    end
+
+    btnApply = FXButton.new(hfrInputZone, "Apply templates", :opts => LAYOUT_CENTER_X | FRAME_LINE)
+    btnApply.connect(SEL_COMMAND) do |sender, selector, data|
+      for i in 0..listboxes.length-1
+        if (listboxes[i].currentItem > 0)
+          templateIndex = listboxes[i].currentItem - 1
+          objTemplates.routine[(i+1).to_s] = objTemplates.templates[templateIndex]
+        else
+          objTemplates.routine[(i+1).to_s] = nil
+        end
+      end
+
+      dump_file(FILE_TEMPLATES, objTemplates)
+
+      puts "RUNNING"
+      getApp().stopModal(self)
+      self.hide
+    end
   end
 end
 
@@ -306,27 +370,33 @@ class TaskPie < FXCanvas
   end
 
   def calc_overlap
-    listIndexOverlap = []
+    @listIndexOverlap = Array.new(@tasks.length, 0)
 
-    @tasks.each do |targetTask|
+    for iTarget in 0..@tasks.length-1
+      targetTask = @tasks[iTarget]
+
       if (targetTask.isScheduled)
-        indexOverlap = 0
-
-        for i in 0..@tasks.index(targetTask)
-          refTask = @tasks[i]
-
-          if (refTask != targetTask)
-            if ((targetTask.timeStart >= refTask.timeStart && targetTask.timeStart < refTask.timeEnd) || (targetTask.timeEnd >= refTask.timeStart && targetTask.timeEnd < refTask.timeEnd)) && indexOverlap == listIndexOverlap[i]
-              indexOverlap += 1
-            end
-          end
-        end
-
-        listIndexOverlap.push(indexOverlap)
+        check_overlap(iTarget)
       end
     end
 
-    return listIndexOverlap
+    return @listIndexOverlap
+  end
+
+  def check_overlap(iTarget)
+    targetTask = @tasks[iTarget]
+
+    for iRef in 0..@tasks.length-1
+      refTask = @tasks[iRef]
+
+      if (refTask != targetTask && refTask.isScheduled)
+        if (((targetTask.timeStart >= refTask.timeStart && targetTask.timeStart <= refTask.timeEnd) || (targetTask.timeEnd >= refTask.timeStart && targetTask.timeEnd <= refTask.timeEnd) || (targetTask.timeStart <= refTask.timeStart && targetTask.timeEnd >= refTask.timeEnd)) && (@listIndexOverlap[iTarget] == @listIndexOverlap[iRef]))
+          @listIndexOverlap[iTarget] += 1
+
+          check_overlap(iTarget)
+        end
+      end
+    end
   end
 
   def draw_arc(dc, timeStart, timeEnd, indexOverlap)
@@ -460,10 +530,23 @@ class TaskCreateMenu < FXVerticalFrame
 		# Checks if task time is given, and if given, checks all inputs are given
     isEmpty = @inTaskStartH.text == "" && @inTaskStartM.text == "" && @inTaskEndH.text == "" && @inTaskEndM.text == ""
     isFilled = @inTaskStartH.text != "" && @inTaskStartM.text != "" && @inTaskEndH.text != "" && @inTaskEndM.text != ""
-
 		if !(isEmpty || isFilled)
       return false
 		end
+
+    invalidHours = @inTaskStartH.text.to_i < 0 || @inTaskStartH.text.to_i > 24 || @inTaskEndH.text.to_i < 0 || @inTaskEndH.text.to_i > 24
+    invalidMinutes = @inTaskStartM.text.to_i < 0 || @inTaskStartM.text.to_i > 60 || @inTaskEndM.text.to_i < 0 || @inTaskEndM.text.to_i > 60
+    if (isFilled)
+      if (invalidHours || invalidMinutes)
+        return false
+      end
+    end
+
+    taskStart = generate_time(@inTaskStartH.text.to_i, @inTaskStartM.text.to_i)
+    taskEnd = generate_time(@inTaskEndH.text.to_i, @inTaskEndM.text.to_i)
+    if (taskStart > taskEnd)
+      return false
+    end
 
     return true
 	end
@@ -472,12 +555,6 @@ class TaskCreateMenu < FXVerticalFrame
     dateToday = @parent.dateToday
 
     return Time.new(dateToday.year, dateToday.month, dateToday.day, h, m)
-  end
-
-  def create_button_add ()
-  end
-
-  def create_button_cancel
   end
 end
 
