@@ -3,19 +3,21 @@ require 'fox16'
 include Fox
 
 class Main < FXMainWindow
-  attr_reader :dateRef, :tasksCurrent
+  attr_reader :dateToday, :objTasksCurrent
 
   def initialize(app)
     super(app, "_Routine", :width => 1024, :height => 768)
     @@font = FXFont.new(app, "segoe ui", 9)
     @@font.create
 
+    MenuBar.new(self)
 
-    @dateRef = Time.new()
+    @dateToday = Time.new()
     check_existing_tasks
+    check_existing_templates
     check_date
 
-    disp = DisplayTaskMenu.new(self)
+    disp = TasksDisplayMain.new(self, @objTasksCurrent)
   end
 
   def self.font
@@ -29,72 +31,149 @@ class Main < FXMainWindow
 
   def check_existing_tasks
     begin
-      @tasksCurrent = load_file("test.dump")
+      @objTasksCurrent = load_file(FILE_CURRENT_TASKS)
     rescue
-      @tasksCurrent = Tasks.new
-      dump_file("test.dump", @tasksCurrent)
+      @objTasksCurrent = Tasks.new
+      dump_file(FILE_CURRENT_TASKS, @objTasksCurrent)
+    end
+  end
+
+  def check_existing_templates
+    begin
+      templates = load_file(FILE_TEMPLATES)
+    rescue
+      templates = Templates.new
+      dump_file(FILE_TEMPLATES, templates)
     end
   end
 
   def check_date
-    dateFile = @tasksCurrent.date
+    dateFile = @objTasksCurrent.date
 
-    isSameDay = dateFile.year == @dateRef.year && dateFile.month == @dateRef.month && dateFile.day == @dateRef.day
+    isSameDay = dateFile.year == @dateToday.year && dateFile.month == @dateToday.month && dateFile.day == @dateToday.day
     if (!isSameDay)
-      @tasksCurrent = Tasks.new
-      dump_file("test.dump", @tasksCurrent)
+      @objTasksCurrent = Tasks.new
+      dump_file(FILE_CURRENT_TASKS, @objTasksCurrent)
     end
   end
 end
 
 
 
-class DisplayTaskMenu < FXHorizontalFrame
-	def initialize(parent)
-		super(parent, :opts => LAYOUT_FILL)
-    @parent = parent
-    @tasks = @parent.tasksCurrent.tasks
+class MenuBar < FXMenuBar
+  def initialize(parent)
+    super(parent, :opts => LAYOUT_FILL_X | FRAME_RAISED)
 
-    @tasks.each do |task|
-      puts "Task: " + task.title
-      puts "Description: " + task.desc
-      puts "Start Time: " + task.timeStart.to_s
-      puts "End Time: " + task.timeEnd.to_s
-      puts "Duration: " + task.timeDuration.to_s
-      puts ""
-    end
+    menuTemplatesPane = FXMenuPane.new(self)
+    menuTemplatesTitle = FXMenuTitle.new(self, "Templates", :popupMenu => menuTemplatesPane)
 
-    # Large vertical frame for title and pies
-    vfrScheduled = FXVerticalFrame.new(self, :opts => LAYOUT_FILL)
-    lbScheduledTitle = FXLabel.new(vfrScheduled, "Scheduled Tasks", :opts => LAYOUT_CENTER_X)
-
-    if (@tasks.length > 0)
-      Pie.new(vfrScheduled, @parent.tasksCurrent.tasks)
-    end
-
-    # Skinny vertical frame for unlisted tasks and button
-    vfrList = FXVerticalFrame.new(self, :opts => LAYOUT_SIDE_RIGHT)
-    lbListTitle = FXLabel.new(vfrList, "Unscheduled Tasks", :opts => LAYOUT_CENTER_X)
-
-    scrArea = FXScrollArea.new(vfrList, :width => 100, :height => self.height)
-    vfrTasks = FXVerticalFrame.new(scrArea, :opts => LAYOUT_FILL | FRAME_LINE)
-
-    @tasks.each do |task|
-      DisplayTask.new(vfrTasks, task)
-    end
-
-    btAddTask = FXButton.new(vfrList, "+")
-    btAddTask.connect(SEL_COMMAND) do
-      removeChild(self)
-      AddTaskMenu.new(@parent).create
-      @parent.recalc
-    end
-	end
+    menuTemplatesUse = FXMenuCommand.new(menuTemplatesPane, "Use template for today")
+    menuTemplatesRoutine = FXMenuCommand.new(menuTemplatesPane, "Set routine templates")
+    menuTemplatesDelete = FXMenuCommand.new(menuTemplatesPane, "Delete templates")
+  end
 end
 
 
 
-class DisplayTask < FXVerticalFrame
+class TemplatesList < FXMainWindow
+  def initialize
+
+  end
+end
+
+
+
+class TasksDisplay < FXHorizontalFrame
+  def initialize(parent, objTasks)
+    super(parent, :opts => LAYOUT_FILL)
+    @parent = parent
+    @objTasks = objTasks
+
+    # Large vertical frame for title and pies
+    @vfrScheduled = FXVerticalFrame.new(self, :opts => LAYOUT_FILL)
+    lbScheduledTitle = FXLabel.new(@vfrScheduled, "Tasks", :opts => LAYOUT_CENTER_X)
+
+    TaskPie.new(@vfrScheduled, @objTasks.tasks)
+
+    # Skinny vertical frame for listing tasks and buttons
+    @vfrList = FXVerticalFrame.new(self, :opts => LAYOUT_FIX_HEIGHT | LAYOUT_FIX_WIDTH, :width => 300, :height => @parent.height - 50)
+
+    hfrScrollWindowBorder = FXHorizontalFrame.new(@vfrList, :opts => LAYOUT_FILL | FRAME_LINE)
+    scrWindow = FXScrollWindow.new(hfrScrollWindowBorder, :opts => LAYOUT_FILL)
+    vfrTasks = FXVerticalFrame.new(scrWindow, :opts => LAYOUT_FILL)
+
+    @objTasks.tasks.each do |task|
+      TaskBlock.new(vfrTasks, task)
+    end
+  end
+end
+
+
+
+class TasksDisplayMain < TasksDisplay
+  def initialize(parent, objTasks)
+    super(parent, objTasks)
+    @parent = parent
+    @objTasks = objTasks
+
+    btnAddTask = FXButton.new(@vfrList, "Add New Task", :opts => LAYOUT_CENTER_X | FRAME_RAISED)
+    btnAddTask.connect(SEL_COMMAND) do
+      @parent.removeChild(self)
+      TaskCreateMenu.new(@parent, @objTasks, TasksDisplayMain, true).create
+      @parent.recalc
+    end
+
+    btnAddTemplate = FXButton.new(@vfrList, "Add New Template", :opts => LAYOUT_CENTER_X | FRAME_RAISED)
+    btnAddTemplate.connect(SEL_COMMAND) do
+      @parent.removeChild(self)
+      newTemplateTasks = Tasks.new()
+      TasksDisplayTemplate.new(@parent, newTemplateTasks).create
+      @parent.recalc
+    end
+  end
+end
+
+
+
+class TasksDisplayTemplate < TasksDisplay
+  def initialize(parent, objTasks)
+    super(parent, objTasks)
+    @parent = parent
+    @objTasks = objTasks
+
+    btnAddTask = FXButton.new(@vfrList, "Add New Task", :opts => LAYOUT_CENTER_X | FRAME_RAISED)
+    btnAddTask.connect(SEL_COMMAND) do
+      @parent.removeChild(self)
+      TaskCreateMenu.new(@parent, @objTasks, TasksDisplayTemplate, false).create
+      @parent.recalc
+    end
+
+    btnAddTemplate = FXButton.new(@vfrScheduled, "Add Template", :opts => LAYOUT_CENTER_X | FRAME_LINE)
+    btnAddTemplate.connect(SEL_COMMAND) do
+      templates = load_file(FILE_TEMPLATES)
+      templates.generate_template(@name, @objTasks)
+      dump_file(FILE_TEMPLATES, templates)
+
+      to_TasksDisplayMain
+    end
+
+    btnCancel = FXButton.new(@vfrScheduled, "Cancel", :opts => LAYOUT_CENTER_X | FRAME_LINE)
+    btnCancel.connect(SEL_COMMAND) do
+      to_TasksDisplayMain
+    end
+  end
+
+  def to_TasksDisplayMain
+    @parent.removeChild(self)
+    current_tasks = load_file(FILE_CURRENT_TASKS)
+    TasksDisplayMain.new(@parent, current_tasks).create
+    @parent.recalc
+  end
+end
+
+
+
+class TaskBlock < FXVerticalFrame
   def initialize(parent, task)
     super(parent, :opts => LAYOUT_FILL_X | FRAME_THICK)
     @task = task
@@ -123,7 +202,7 @@ end
 
 
 
-class Pie < FXCanvas
+class TaskPie < FXCanvas
   def initialize(parent, tasks)
     super(parent, :opts => LAYOUT_FILL)
     @parent = parent
@@ -149,11 +228,13 @@ class Pie < FXCanvas
       diaRing = @dia + 15
       dc.drawArc((self.width / 2) - (diaRing / 2), (self.height / 2) - (diaRing / 2), diaRing, diaRing, 0, 23040)
 
-      for targetIndex in 0..(@listIndexOverlap).max
-        for i in 0..@tasks.length - 1
-          if (@listIndexOverlap[i] == targetIndex)
-            task = @tasks[i]
-            draw_arc(dc, task.timeStart, task.timeEnd, @listIndexOverlap[i])
+      if @tasks.length > 0
+        for targetIndex in 0..(@listIndexOverlap).max
+          for i in 0..@tasks.length - 1
+            if (@listIndexOverlap[i] == targetIndex)
+              task = @tasks[i]
+              draw_arc(dc, task.timeStart, task.timeEnd, @listIndexOverlap[i])
+            end
           end
         end
       end
@@ -245,10 +326,13 @@ end
 
 
 
-class AddTaskMenu < FXVerticalFrame
-	def initialize(parent)
+class TaskCreateMenu < FXVerticalFrame
+	def initialize(parent, objTasks, tasksDisplay, isSave)
 		super(parent, :opts => LAYOUT_CENTER_X | LAYOUT_CENTER_Y)
     @parent = parent
+    @objTasks = objTasks
+    @tasksDisplay = tasksDisplay
+    @isSave = isSave
 
 		FXLabel.new(self, "Add New Task", :opts => LAYOUT_CENTER_X | LAYOUT_TOP)
 
@@ -288,11 +372,14 @@ class AddTaskMenu < FXVerticalFrame
           taskEnd = generate_time(@inTaskEndH.text.to_i, @inTaskEndM.text.to_i)
         end
 
-        @parent.tasksCurrent.generate_task(@inTaskTitle.text, @inTaskDesc.text, taskStart, taskEnd)
-        dump_file("test.dump", @parent.tasksCurrent)
+        @objTasks.generate_task(@inTaskTitle.text, @inTaskDesc.text, taskStart, taskEnd)
+
+        if (@isSave)
+          dump_file(FILE_CURRENT_TASKS, @objTasks)
+        end
 
         removeChild(self)
-        DisplayTaskMenu.new(@parent).create
+        @tasksDisplay.new(@parent, @objTasks).create
         @parent.recalc
       end
 		end
@@ -300,7 +387,7 @@ class AddTaskMenu < FXVerticalFrame
 		btCancel = FXButton.new(hfrButtons, "Cancel")
 		btCancel.connect(SEL_COMMAND) do
       removeChild(self)
-      DisplayTaskMenu.new(@parent).create
+      @tasksDisplay.new(@parent, @objTasks).create
       @parent.recalc
 		end
 	end
@@ -323,9 +410,15 @@ class AddTaskMenu < FXVerticalFrame
 	end
 
   def generate_time(h, m)
-    dateRef = @parent.dateRef
+    dateToday = @parent.dateToday
 
-    return Time.new(dateRef.year, dateRef.month, dateRef.day, h, m)
+    return Time.new(dateToday.year, dateToday.month, dateToday.day, h, m)
+  end
+
+  def create_button_add ()
+  end
+
+  def create_button_cancel
   end
 end
 

@@ -1,3 +1,6 @@
+FILE_CURRENT_TASKS = "current_tasks.dump"
+FILE_TEMPLATES = "templates.dump"
+
 class Tasks
   attr_accessor :date, :tasks
 
@@ -12,6 +15,8 @@ class Tasks
     @tasks.push(taskNew)
   end
 end
+
+
 
 class Task
   attr_accessor :title, :desc, :timeStart, :timeEnd, :timeDuration, :isScheduled
@@ -30,12 +35,35 @@ class Task
   end
 end
 
+
+
+class Templates
+  attr_accessor :routine, :templates
+
+  def initialize
+    @routine = {"1" => nil, "2" => nil, "3" => nil, "4" => nil, "5" => nil, "6" => nil, "7" => nil}
+    @templates = []
+  end
+
+  def generate_template(name, tasks)
+    template = Template.new(name, tasks)
+
+    @templates.push(template)
+  end
+end
+
+
+
 class Template
+  attr_accessor :name, :tasks
+
   def initialize(name, tasks)
     @name = name
     @tasks = tasks
   end
 end
+
+
 
 def dump_file(file, content)
   data = Marshal.dump(content)
