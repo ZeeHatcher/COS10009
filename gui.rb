@@ -3,21 +3,21 @@ require 'fox16'
 include Fox
 
 class Main < FXMainWindow
-  attr_reader :dateToday, :objTasksCurrent
+  attr_reader :dateToday, :objTasksCurrent, :templates
 
   def initialize(app)
     super(app, "_Routine", :width => 1024, :height => 768)
     @@font = FXFont.new(app, "segoe ui", 9)
     @@font.create
 
-    MenuBar.new(self)
 
     @dateToday = Time.new()
     check_existing_tasks
     check_existing_templates
     check_date
 
-    disp = TasksDisplayMain.new(self, @objTasksCurrent)
+    MenuBar.new(self)
+    TasksDisplayMain.new(self, @objTasksCurrent)
   end
 
   def self.font
@@ -40,10 +40,10 @@ class Main < FXMainWindow
 
   def check_existing_templates
     begin
-      templates = load_file(FILE_TEMPLATES)
+      @templates = load_file(FILE_TEMPLATES)
     rescue
-      templates = Templates.new
-      dump_file(FILE_TEMPLATES, templates)
+      @templates = Templates.new
+      dump_file(FILE_TEMPLATES, @templates)
     end
   end
 
@@ -56,6 +56,12 @@ class Main < FXMainWindow
       dump_file(FILE_CURRENT_TASKS, @objTasksCurrent)
     end
   end
+
+  def update_tasks(newTasks)
+    @objTasksCurrent = newTasks
+
+    dump_file(FILE_CURRENT_TASKS, @objTasksCurrent)
+  end
 end
 
 
@@ -63,6 +69,7 @@ end
 class MenuBar < FXMenuBar
   def initialize(parent)
     super(parent, :opts => LAYOUT_FILL_X | FRAME_RAISED)
+    @parent = parent
 
     menuTemplatesPane = FXMenuPane.new(self)
     menuTemplatesTitle = FXMenuTitle.new(self, "Templates", :popupMenu => menuTemplatesPane)
@@ -70,14 +77,37 @@ class MenuBar < FXMenuBar
     menuTemplatesUse = FXMenuCommand.new(menuTemplatesPane, "Use template for today")
     menuTemplatesRoutine = FXMenuCommand.new(menuTemplatesPane, "Set routine templates")
     menuTemplatesDelete = FXMenuCommand.new(menuTemplatesPane, "Delete templates")
+
+    listTemplates = TemplatesList.new(self, @parent.templates.templates)
+    menuTemplatesUse.connect(SEL_COMMAND) do
+      i = listTemplates.execute
+
+      if (i >= 0 && i < @parent.templates.templates.length)
+        chosenTasks = @parent.templates.templates[i].tasks
+        @parent.update_tasks(chosenTasks)
+
+        @parent.children.each do |child|
+          @parent.removeChild(child)
+        end
+
+        MenuBar.new(@parent).create
+        TasksDisplayMain.new(@parent, chosenTasks).create
+        @parent.recalc
+      end
+    end
   end
 end
 
 
 
-class TemplatesList < FXMainWindow
-  def initialize
+class TemplatesList < FXChoiceBox
+  def initialize(parent, arrTemplates)
+    templateNames = []
+    for i in 0..arrTemplates.length-1
+      templateNames << arrTemplates[i].name
+    end
 
+    super(parent, "Choose template", "", nil, templateNames)
   end
 end
 
@@ -89,10 +119,8 @@ class TasksDisplay < FXHorizontalFrame
     @parent = parent
     @objTasks = objTasks
 
-    # Large vertical frame for title and pies
+    # Large vertical frame pies
     @vfrScheduled = FXVerticalFrame.new(self, :opts => LAYOUT_FILL)
-    lbScheduledTitle = FXLabel.new(@vfrScheduled, "Tasks", :opts => LAYOUT_CENTER_X)
-
     TaskPie.new(@vfrScheduled, @objTasks.tasks)
 
     # Skinny vertical frame for listing tasks and buttons
@@ -125,8 +153,12 @@ class TasksDisplayMain < TasksDisplay
 
     btnAddTemplate = FXButton.new(@vfrList, "Add New Template", :opts => LAYOUT_CENTER_X | FRAME_RAISED)
     btnAddTemplate.connect(SEL_COMMAND) do
-      @parent.removeChild(self)
+      @parent.children.each do |child|
+        @parent.removeChild(child)
+      end
+
       newTemplateTasks = Tasks.new()
+      MenuBar.new(@parent).create
       TasksDisplayTemplate.new(@parent, newTemplateTasks).create
       @parent.recalc
     end
@@ -148,13 +180,17 @@ class TasksDisplayTemplate < TasksDisplay
       @parent.recalc
     end
 
+    lbTemplateName = FXLabel.new(@vfrScheduled, "Template Name:", :opts => LAYOUT_CENTER_X)
+    @inTemplateName = FXTextField.new(@vfrScheduled, 25, :opts => LAYOUT_CENTER_X | FRAME_LINE)
+
     btnAddTemplate = FXButton.new(@vfrScheduled, "Add Template", :opts => LAYOUT_CENTER_X | FRAME_LINE)
     btnAddTemplate.connect(SEL_COMMAND) do
-      templates = load_file(FILE_TEMPLATES)
-      templates.generate_template(@name, @objTasks)
-      dump_file(FILE_TEMPLATES, templates)
+      if (@inTemplateName.text != "")
+        @parent.templates.generate_template(@inTemplateName.text, @objTasks)
+        dump_file(FILE_TEMPLATES, @parent.templates)
 
-      to_TasksDisplayMain
+        to_TasksDisplayMain
+      end
     end
 
     btnCancel = FXButton.new(@vfrScheduled, "Cancel", :opts => LAYOUT_CENTER_X | FRAME_LINE)
@@ -164,8 +200,12 @@ class TasksDisplayTemplate < TasksDisplay
   end
 
   def to_TasksDisplayMain
-    @parent.removeChild(self)
+    @parent.children.each do |child|
+      @parent.removeChild(child)
+    end
+
     current_tasks = load_file(FILE_CURRENT_TASKS)
+    MenuBar.new(@parent).create
     TasksDisplayMain.new(@parent, current_tasks).create
     @parent.recalc
   end
