@@ -74,16 +74,15 @@ class MenuBar < FXMenuBar
     menuTemplatesPane = FXMenuPane.new(self)
     menuTemplatesTitle = FXMenuTitle.new(self, "Templates", :popupMenu => menuTemplatesPane)
 
-    menuTemplatesUse = FXMenuCommand.new(menuTemplatesPane, "Use template for today")
-    menuTemplatesRoutine = FXMenuCommand.new(menuTemplatesPane, "Set routine templates")
-    menuTemplatesDelete = FXMenuCommand.new(menuTemplatesPane, "Delete templates")
-
     listTemplates = TemplatesList.new(self, @parent.templates.templates)
+
+    menuTemplatesUse = FXMenuCommand.new(menuTemplatesPane, "Use template for today")
     menuTemplatesUse.connect(SEL_COMMAND) do
       i = listTemplates.execute
 
       if (i >= 0 && i < @parent.templates.templates.length)
         chosenTasks = @parent.templates.templates[i].tasks
+        chosenTasks.date = Time.new
         @parent.update_tasks(chosenTasks)
 
         @parent.children.each do |child|
@@ -92,6 +91,26 @@ class MenuBar < FXMenuBar
 
         MenuBar.new(@parent).create
         TasksDisplayMain.new(@parent, chosenTasks).create
+        @parent.recalc
+      end
+    end
+
+    menuTemplatesRoutine = FXMenuCommand.new(menuTemplatesPane, "Set routine templates")
+
+    menuTemplatesDelete = FXMenuCommand.new(menuTemplatesPane, "Delete templates")
+    menuTemplatesDelete.connect(SEL_COMMAND) do
+      i = listTemplates.execute
+
+      if (i >= 0 && i < @parent.templates.templates.length)
+        @parent.templates.templates.delete_at(i)
+        dump_file(FILE_TEMPLATES, @parent.templates)
+
+        @parent.children.each do |child|
+          @parent.removeChild(child)
+        end
+
+        MenuBar.new(@parent).create
+        TasksDisplayMain.new(@parent, @parent.objTasksCurrent).create
         @parent.recalc
       end
     end
