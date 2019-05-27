@@ -170,6 +170,7 @@ class RoutineList < FXDialogBox
       FXLabel.new(vfrRow, day + ": ", :opts => LAYOUT_FIX_WIDTH | JUSTIFY_RIGHT, :width => 100)
 
       listbox = FXListBox.new(vfrRow, :opts => LAYOUT_FILL_X | FRAME_LINE)
+      listbox.numVisible = 5
       listbox.fillItems(templateNames)
       listboxes << listbox
     end
@@ -214,7 +215,7 @@ class TasksDisplay < FXHorizontalFrame
     vfrTasks = FXVerticalFrame.new(scrWindow, :opts => LAYOUT_FILL)
 
     @objTasks.tasks.each do |task|
-      TaskBlock.new(vfrTasks, task)
+      TaskBlock.new(vfrTasks, task, self)
     end
   end
 end
@@ -297,11 +298,30 @@ end
 
 
 class TaskBlock < FXVerticalFrame
-  def initialize(parent, task)
+  def initialize(parent, task, owner)
     super(parent, :opts => LAYOUT_FILL_X | FRAME_THICK)
     @task = task
+    @main = owner.parent
 
-    lbTitle = FXLabel.new(self, @task.title)
+    hfrTitle = FXHorizontalFrame.new(self, :opts => LAYOUT_FILL_X)
+    btnDelete = FXButton.new(hfrTitle, "DEL")
+    btnDelete.connect(SEL_COMMAND) do
+      tasksCurrent =  @main.objTasksCurrent
+      tasksCurrent.tasks.delete(@task)
+
+      @main.update_tasks(tasksCurrent)
+
+      @main.children.each do |child|
+        @main.removeChild(child)
+      end
+
+      MenuBar.new(@main).create
+      TasksDisplayMain.new(@main, tasksCurrent).create
+      @main.recalc
+    end
+
+    lbTitle = FXLabel.new(hfrTitle, @task.title)
+
     lbDesc = FXLabel.new(self, @task.desc)
 
     timeStart = format_time(@task.timeStart)
