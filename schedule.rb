@@ -1,6 +1,7 @@
 FILE_CURRENT_TASKS = "current_tasks.dump"
 FILE_TEMPLATES = "templates.dump"
 
+# Stores the date of creation and a list of tasks
 class Tasks
   attr_accessor :date, :tasks
 
@@ -18,6 +19,7 @@ end
 
 
 
+# Stores the information about the task
 class Task
   attr_accessor :title, :desc, :timeStart, :timeEnd, :timeDuration, :isScheduled
 
@@ -37,6 +39,7 @@ end
 
 
 
+# Stores a list of templates and templates associated with each day
 class Templates
   attr_accessor :routine, :templates
 
@@ -54,6 +57,7 @@ end
 
 
 
+# Stores the name of the template and the list of tasks associated with this template
 class Template
   attr_accessor :name, :tasks
 
@@ -65,6 +69,7 @@ end
 
 
 
+# Serializes and stores the data in a text file
 def dump_file(file, content)
   data = Marshal.dump(content)
 
@@ -73,6 +78,7 @@ def dump_file(file, content)
   end
 end
 
+# Reads the file and deserializes the data from the text file
 def load_file(file)
   File.open(file, "r") do |f|
     data = f.read()
